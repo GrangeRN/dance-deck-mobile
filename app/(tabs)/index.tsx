@@ -8,12 +8,14 @@ import { Card } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { gradients } from "@/lib/theme";
-import type { Event } from "@/types/database";
+import { ColorDot } from "@/components/common/ColorDot";
+import type { Event, DancerProfile } from "@/types/database";
 
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [nextEvent, setNextEvent] = useState<Event | null>(null);
+  const [dancers, setDancers] = useState<DancerProfile[]>([]);
   const [loading, setLoading] = useState(true);
 
   useFocusEffect(
@@ -24,16 +26,23 @@ export default function HomeScreen() {
         setLoading(true);
         const today = new Date().toISOString().split("T")[0];
 
-        // Get next upcoming event
-        const { data } = await supabase
-          .from("events")
-          .select("*")
-          .gte("end_date", today)
-          .is("deleted_at", null)
-          .order("start_date", { ascending: true })
-          .limit(1);
+        const [eventRes, dancerRes] = await Promise.all([
+          supabase
+            .from("events")
+            .select("*")
+            .gte("end_date", today)
+            .is("deleted_at", null)
+            .order("start_date", { ascending: true })
+            .limit(1),
+          supabase
+            .from("dancer_profiles")
+            .select("*")
+            .eq("parent_user_id", user.id)
+            .order("created_at"),
+        ]);
 
-        setNextEvent(data?.[0] || null);
+        setNextEvent(eventRes.data?.[0] || null);
+        setDancers(dancerRes.data || []);
         setLoading(false);
       })();
     }, [user])
@@ -187,11 +196,32 @@ export default function HomeScreen() {
             </Text>
             <ChevronRight color="#52525B" size={16} strokeWidth={1.5} />
           </Pressable>
-          <Card>
-            <Text className="font-body text-sm text-txt-secondary text-center">
-              Go to Account → Dancer Profiles to add your dancers
-            </Text>
-          </Card>
+          {dancers.length === 0 ? (
+            <Card>
+              <Text className="font-body text-sm text-txt-secondary text-center">
+                Add your dancers in Account → Dancer Profiles
+              </Text>
+            </Card>
+          ) : (
+            <View className="flex-row flex-wrap gap-3">
+              {dancers.map((d) => (
+                <Pressable
+                  key={d.id}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(tabs)/account/dancers/[dancerId]",
+                      params: { dancerId: d.id },
+                    })
+                  }
+                >
+                  <Card className="flex-row items-center gap-2 py-2 px-3">
+                    <ColorDot color={d.assigned_color} size={24} />
+                    <Text className="font-body-medium text-sm text-txt-primary">{d.name}</Text>
+                  </Card>
+                </Pressable>
+              ))}
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
