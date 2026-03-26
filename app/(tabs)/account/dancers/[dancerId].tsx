@@ -142,8 +142,8 @@ export default function DancerDetailScreen() {
 
   const handleAddRoutine = () => {
     router.push({
-      pathname: "/(tabs)/account/dancers/[dancerId]",
-      params: { dancerId: dancerId!, showRoutineForm: "true" },
+      pathname: "/(tabs)/account/dancers/routine/[routineId]",
+      params: { routineId: "new", dancerId: dancerId! },
     });
   };
 

@@ -1,11 +1,9 @@
 import { Stack } from "expo-router";
 
-export default function DancersLayout() {
+export default function RoutineLayout() {
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#0D0D0F" } }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="[dancerId]" />
-      <Stack.Screen name="routine" />
+      <Stack.Screen name="[routineId]" />
     </Stack>
   );
 }
