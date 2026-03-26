@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { View, Text, Pressable, Alert, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { View, Text, Pressable, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { ArrowLeft } from "lucide-react-native";
+import { ArrowLeft, Mail } from "lucide-react-native";
 import { Input } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
 import { gradients } from "@/lib/theme";
@@ -18,25 +18,28 @@ export default function SignupScreen() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [checkEmail, setCheckEmail] = useState(false);
 
   const handleSubmit = async () => {
+    setError("");
+
     if (!email || !password) {
-      Alert.alert("Missing fields", "Please enter your email and password.");
+      setError("Please enter your email and password.");
       return;
     }
     if (!isLogin && (!firstName || !lastName)) {
-      Alert.alert("Missing fields", "Please enter your first and last name.");
+      setError("Please enter your first and last name.");
       return;
     }
 
     setLoading(true);
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        // Auth state listener in root layout handles navigation
+        const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+        if (authError) throw authError;
       } else {
-        const { data, error } = await supabase.auth.signUp({
+        const { data, error: authError } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -47,27 +50,71 @@ export default function SignupScreen() {
             },
           },
         });
-        if (error) throw error;
+        if (authError) throw authError;
 
-        // If email confirmation is required, user won't have a session yet
         if (data?.user && !data.session) {
-          Alert.alert(
-            "Check Your Email",
-            `We sent a confirmation link to ${email}. Open it to activate your account, then come back and sign in.`,
-            [{ text: "Got it", onPress: () => router.setParams({ mode: "login" }) }]
-          );
+          setCheckEmail(true);
         } else {
-          // If auto-confirmed (e.g., during development), go to onboarding
           router.replace("/(auth)/onboarding");
         }
       }
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Something went wrong");
+      setError(err.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
+  // ── Check Your Email Screen ──────────────────────────────
+  if (checkEmail) {
+    return (
+      <SafeAreaView className="flex-1 bg-bg-primary">
+        <View className="flex-1 items-center justify-center px-page-mobile">
+          <View
+            style={{
+              width: 64, height: 64, borderRadius: 32,
+              backgroundColor: "#4C1D95", alignItems: "center", justifyContent: "center",
+              marginBottom: 24,
+            }}
+          >
+            <Mail color="#C084FC" size={32} strokeWidth={1.5} />
+          </View>
+          <Text className="font-display text-2xl text-txt-primary text-center mb-3">
+            Check Your Email
+          </Text>
+          <Text className="font-body text-base text-txt-secondary text-center mb-2">
+            We sent a confirmation link to:
+          </Text>
+          <Text className="font-body-medium text-base text-accent-violet text-center mb-8">
+            {email}
+          </Text>
+          <Text className="font-body text-sm text-txt-muted text-center mb-8">
+            Open the link in your email to activate your account, then come back here and sign in.
+          </Text>
+
+          <Pressable
+            onPress={() => {
+              setCheckEmail(false);
+              router.setParams({ mode: "login" });
+            }}
+          >
+            <LinearGradient
+              colors={[...gradients.primary]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ borderRadius: 10, paddingVertical: 14, paddingHorizontal: 32, alignItems: "center" }}
+            >
+              <Text className="font-body-medium text-base text-txt-primary">
+                Go to Sign In
+              </Text>
+            </LinearGradient>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Sign Up / Sign In Form ───────────────────────────────
   return (
     <SafeAreaView className="flex-1 bg-bg-primary">
       <KeyboardAvoidingView
@@ -91,6 +138,13 @@ export default function SignupScreen() {
                 ? "Sign in to your DanceDeck account"
                 : "Get started with DanceDeck"}
             </Text>
+
+            {/* Error Message */}
+            {error ? (
+              <View className="bg-status-danger/10 border border-status-danger/30 rounded-md px-4 py-3 mb-4">
+                <Text className="font-body text-sm text-status-danger">{error}</Text>
+              </View>
+            ) : null}
 
             <View className="gap-4">
               {!isLogin && (
@@ -146,9 +200,10 @@ export default function SignupScreen() {
               </Pressable>
 
               <Pressable
-                onPress={() =>
-                  router.setParams({ mode: isLogin ? "signup" : "login" })
-                }
+                onPress={() => {
+                  setError("");
+                  router.setParams({ mode: isLogin ? "signup" : "login" });
+                }}
                 className="items-center mt-4"
               >
                 <Text className="font-body text-sm text-txt-secondary">
