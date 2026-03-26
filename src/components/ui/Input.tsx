@@ -1,5 +1,6 @@
-import { TextInput, View, Text } from "react-native";
+import { TextInput, View, Text, Pressable } from "react-native";
 import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react-native";
 
 interface InputProps {
   label?: string;
@@ -21,6 +22,7 @@ export function Input({
   keyboardType = "default",
 }: InputProps) {
   const [focused, setFocused] = useState(false);
+  const [hidden, setHidden] = useState(secureTextEntry ?? false);
 
   return (
     <View className="w-full">
@@ -29,20 +31,33 @@ export function Input({
           {label}
         </Text>
       )}
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#52525B"
-        secureTextEntry={secureTextEntry}
-        autoCapitalize={autoCapitalize}
-        keyboardType={keyboardType}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        className={`bg-bg-input text-txt-primary font-body text-base rounded-md px-4 py-3 border ${
+      <View
+        className={`flex-row items-center bg-bg-input rounded-md border ${
           focused ? "border-accent-violet" : "border-border"
         }`}
-      />
+      >
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="#52525B"
+          secureTextEntry={hidden}
+          autoCapitalize={autoCapitalize}
+          keyboardType={keyboardType}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          className="flex-1 text-txt-primary font-body text-base px-4 py-3"
+        />
+        {secureTextEntry && (
+          <Pressable onPress={() => setHidden(!hidden)} className="pr-4">
+            {hidden ? (
+              <EyeOff color="#52525B" size={20} strokeWidth={1.5} />
+            ) : (
+              <Eye color="#A1A1AA" size={20} strokeWidth={1.5} />
+            )}
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }

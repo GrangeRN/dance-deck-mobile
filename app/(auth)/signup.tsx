@@ -36,19 +36,30 @@ export default function SignupScreen() {
         if (error) throw error;
         // Auth state listener in root layout handles navigation
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: {
               first_name: firstName,
               last_name: lastName,
-              role: "parent", // Default — changed in onboarding
+              role: "parent",
             },
           },
         });
         if (error) throw error;
-        router.replace("/(auth)/onboarding");
+
+        // If email confirmation is required, user won't have a session yet
+        if (data?.user && !data.session) {
+          Alert.alert(
+            "Check Your Email",
+            `We sent a confirmation link to ${email}. Open it to activate your account, then come back and sign in.`,
+            [{ text: "Got it", onPress: () => router.setParams({ mode: "login" }) }]
+          );
+        } else {
+          // If auto-confirmed (e.g., during development), go to onboarding
+          router.replace("/(auth)/onboarding");
+        }
       }
     } catch (err: any) {
       Alert.alert("Error", err.message || "Something went wrong");
@@ -87,7 +98,7 @@ export default function SignupScreen() {
                   <View className="flex-1">
                     <Input
                       label="First Name"
-                      placeholder="Jessica"
+                      placeholder="First name"
                       value={firstName}
                       onChangeText={setFirstName}
                       autoCapitalize="words"
@@ -96,7 +107,7 @@ export default function SignupScreen() {
                   <View className="flex-1">
                     <Input
                       label="Last Name"
-                      placeholder="Granger"
+                      placeholder="Last name"
                       value={lastName}
                       onChangeText={setLastName}
                       autoCapitalize="words"
