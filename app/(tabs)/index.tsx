@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { View, Text, Pressable, ScrollView } from "react-native";
+import { View, Text, Pressable, ScrollView, FlatList } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Upload, CalendarPlus, ChevronRight } from "lucide-react-native";
@@ -9,14 +9,28 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { gradients } from "@/lib/theme";
 import { ColorDot } from "@/components/common/ColorDot";
+import { Bookmark, BookmarkCheck } from "lucide-react-native";
 import type { Event, DancerProfile } from "@/types/database";
+
+interface ScheduleEntry {
+  id: string;
+  routine_title: string;
+  studio_name: string | null;
+  time_exact: string | null;
+  time_estimated: string | null;
+  heat_number: number | null;
+}
 
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [nextEvent, setNextEvent] = useState<Event | null>(null);
+  const [todayEvent, setTodayEvent] = useState<Event | null>(null);
+  const [todayEntries, setTodayEntries] = useState<ScheduleEntry[]>([]);
+  const [myDayIds, setMyDayIds] = useState<Set<string>>(new Set());
   const [dancers, setDancers] = useState<DancerProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [scheduleFilter, setScheduleFilter] = useState<"all" | "myday">("all");
 
   useFocusEffect(
     useCallback(() => {
@@ -26,7 +40,7 @@ export default function HomeScreen() {
         setLoading(true);
         const today = new Date().toISOString().split("T")[0];
 
-        const [eventRes, dancerRes] = await Promise.all([
+        const [eventRes, dancerRes, todayEventRes] = await Promise.all([
           supabase
             .from("events")
             .select("*")
@@ -39,14 +53,66 @@ export default function HomeScreen() {
             .select("*")
             .eq("parent_user_id", user.id)
             .order("created_at"),
+          // Check if today is a competition day
+          supabase
+            .from("events")
+            .select("*")
+            .lte("start_date", today)
+            .gte("end_date", today)
+            .is("deleted_at", null)
+            .limit(1),
         ]);
 
         setNextEvent(eventRes.data?.[0] || null);
         setDancers(dancerRes.data || []);
+
+        const todayEv = todayEventRes.data?.[0] || null;
+        setTodayEvent(todayEv);
+
+        // If competition day, load schedule
+        if (todayEv) {
+          const [entriesRes, myDayRes] = await Promise.all([
+            supabase
+              .from("schedule_entries")
+              .select("id, routine_title, studio_name, time_exact, time_estimated, heat_number")
+              .eq("event_id", todayEv.id)
+              .is("deleted_at", null)
+              .order("time_exact", { nullsFirst: false })
+              .order("heat_number", { nullsFirst: false }),
+            supabase
+              .from("my_day_selections")
+              .select("schedule_entry_id")
+              .eq("event_id", todayEv.id)
+              .eq("user_id", user.id),
+          ]);
+          setTodayEntries(entriesRes.data || []);
+          setMyDayIds(new Set(myDayRes.data?.map((d) => d.schedule_entry_id) || []));
+        }
+
         setLoading(false);
       })();
     }, [user])
   );
+
+  const toggleMyDay = async (entryId: string) => {
+    if (!user || !todayEvent) return;
+    if (myDayIds.has(entryId)) {
+      await supabase.from("my_day_selections").delete().eq("schedule_entry_id", entryId).eq("user_id", user.id);
+      setMyDayIds((prev) => { const n = new Set(prev); n.delete(entryId); return n; });
+    } else {
+      await supabase.from("my_day_selections").insert({ user_id: user.id, event_id: todayEvent.id, schedule_entry_id: entryId });
+      setMyDayIds((prev) => new Set(prev).add(entryId));
+    }
+  };
+
+  const formatTime = (t: string | null) => {
+    if (!t) return null;
+    const [h, m] = t.split(":");
+    const hour = parseInt(h);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    const h12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${h12}:${m} ${ampm}`;
+  };
 
   const daysUntil = nextEvent
     ? Math.ceil(
@@ -55,6 +121,87 @@ export default function HomeScreen() {
       )
     : null;
 
+  // ── Competition Day Mode ──────────────────────────────────
+  if (todayEvent && todayEntries.length > 0) {
+    const filtered = scheduleFilter === "myday"
+      ? todayEntries.filter((e) => myDayIds.has(e.id))
+      : todayEntries;
+
+    return (
+      <SafeAreaView className="flex-1 bg-bg-primary" edges={["top"]}>
+        {/* Competition Day Header */}
+        <View className="px-page-mobile pt-4 pb-2">
+          <Text className="font-body-medium text-sm text-accent-violet">COMPETITION DAY</Text>
+          <Text className="font-display text-xl text-txt-primary mt-1">{todayEvent.name}</Text>
+          <Text className="font-mono text-sm text-txt-muted mt-1">
+            {new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+          </Text>
+        </View>
+
+        {/* Filter Tabs */}
+        <View className="flex-row px-page-mobile mb-2 gap-2">
+          {(["all", "myday"] as const).map((f) => (
+            <Pressable
+              key={f}
+              onPress={() => setScheduleFilter(f)}
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 8,
+                borderRadius: 999,
+                backgroundColor: scheduleFilter === f ? "#4C1D95" : "transparent",
+              }}
+            >
+              <Text className={`font-body-medium text-sm ${scheduleFilter === f ? "text-accent-violet" : "text-txt-muted"}`}>
+                {f === "all" ? "All" : "My Day"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* Schedule Timeline */}
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
+          ListEmptyComponent={
+            <View className="items-center pt-12">
+              <Text className="font-body text-base text-txt-secondary">
+                {scheduleFilter === "myday" ? "No bookmarked entries. Tap the bookmark icon to add." : "No entries"}
+              </Text>
+            </View>
+          }
+          renderItem={({ item }) => (
+            <View className="bg-bg-card border border-border-subtle rounded-lg p-3 mb-2 flex-row items-center">
+              <View className="mr-3 items-center" style={{ width: 50 }}>
+                {(item.time_exact || item.time_estimated) ? (
+                  <Text className="font-mono text-xs text-txt-muted">
+                    {formatTime(item.time_exact || item.time_estimated)}
+                  </Text>
+                ) : item.heat_number ? (
+                  <Text className="font-mono text-xs text-txt-muted">#{item.heat_number}</Text>
+                ) : null}
+              </View>
+              <View className="flex-1">
+                <Text className="font-body-medium text-sm text-txt-primary">{item.routine_title}</Text>
+                {item.studio_name && (
+                  <Text className="font-body text-xs text-txt-muted">{item.studio_name}</Text>
+                )}
+              </View>
+              <Pressable onPress={() => toggleMyDay(item.id)} className="pl-2">
+                {myDayIds.has(item.id) ? (
+                  <BookmarkCheck color="#C084FC" size={20} strokeWidth={1.5} fill="#C084FC" />
+                ) : (
+                  <Bookmark color="#52525B" size={20} strokeWidth={1.5} />
+                )}
+              </Pressable>
+            </View>
+          )}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  // ── Normal Mode (Non-Competition Day) ──────────────────────
   return (
     <SafeAreaView className="flex-1 bg-bg-primary" edges={["top"]}>
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 40 }}>
