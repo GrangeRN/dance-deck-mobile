@@ -23,6 +23,7 @@ export interface DancerProfile {
   parent_user_id: string;
   name: string;
   assigned_color: string;
+  date_of_birth: string | null;
   created_at: string;
 }
 
@@ -33,6 +34,7 @@ export interface Routine {
   contributed_by: string;
   source: DataSource;
   title: string;
+  routine_type: string | null;
   dance_style: string | null;
   division: string | null;
   age_group: string | null;
@@ -44,11 +46,16 @@ export interface Routine {
   hair_instructions: string | null;
   makeup_instructions: string | null;
   tights_type: string | null;
+  tights_color: string | null;
   accessories: string | null;
   shoes_type: string | null;
   shoes_color: string | null;
   teacher_notes: string | null;
   choreographer_user_id: string | null;
+  stage_setup_needed: boolean;
+  stage_setup_seconds: number | null;
+  stage_takedown_needed: boolean;
+  stage_takedown_seconds: number | null;
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
