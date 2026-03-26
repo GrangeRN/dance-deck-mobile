@@ -65,6 +65,26 @@ export default function SignupScreen() {
     }
   };
 
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
+
+  const handleResendEmail = async () => {
+    setResending(true);
+    try {
+      const { error: resendError } = await supabase.auth.resend({
+        type: "signup",
+        email,
+      });
+      if (resendError) throw resendError;
+      setResent(true);
+      setTimeout(() => setResent(false), 5000);
+    } catch (err: any) {
+      setError(err.message || "Could not resend email. Please try again.");
+    } finally {
+      setResending(false);
+    }
+  };
+
   // ── Check Your Email Screen ──────────────────────────────
   if (checkEmail) {
     return (
@@ -85,12 +105,23 @@ export default function SignupScreen() {
           <Text className="font-body text-base text-txt-secondary text-center mb-2">
             We sent a confirmation link to:
           </Text>
-          <Text className="font-body-medium text-base text-accent-violet text-center mb-8">
+          <Text className="font-body-medium text-base text-accent-violet text-center mb-6">
             {email}
           </Text>
-          <Text className="font-body text-sm text-txt-muted text-center mb-8">
-            Open the link in your email to activate your account, then come back here and sign in.
+          <Text className="font-body text-sm text-txt-secondary text-center mb-2">
+            Click the link in the email to activate your account, then come back here and sign in.
           </Text>
+          <Text className="font-body text-sm text-txt-muted text-center mb-8">
+            Don't see it? Check your spam or junk folder.
+          </Text>
+
+          {resent && (
+            <View className="bg-accent-green/10 border border-accent-green/30 rounded-md px-4 py-3 mb-4">
+              <Text className="font-body text-sm text-accent-green text-center">
+                Confirmation email resent!
+              </Text>
+            </View>
+          )}
 
           <Pressable
             onPress={() => {
@@ -108,6 +139,16 @@ export default function SignupScreen() {
                 Go to Sign In
               </Text>
             </LinearGradient>
+          </Pressable>
+
+          <Pressable
+            onPress={handleResendEmail}
+            disabled={resending}
+            className="mt-4"
+          >
+            <Text className="font-body text-sm text-accent-violet">
+              {resending ? "Resending..." : "Resend confirmation email"}
+            </Text>
           </Pressable>
         </View>
       </SafeAreaView>
