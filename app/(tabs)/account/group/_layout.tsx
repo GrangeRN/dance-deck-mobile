@@ -1,11 +1,11 @@
 import { Stack } from "expo-router";
 
-export default function EventsLayout() {
+export default function GroupLayout() {
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#0D0D0F" } }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="add" />
-      <Stack.Screen name="[eventId]" />
+      <Stack.Screen name="create" />
+      <Stack.Screen name="join" />
+      <Stack.Screen name="[groupId]" />
     </Stack>
   );
 }
